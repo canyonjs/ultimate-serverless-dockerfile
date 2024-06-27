@@ -1,9 +1,23 @@
+# Base image which includes runtime, usually provided by cloud provider
 ARG BASE_IMAGE=public.ecr.aws/lambda/python:3.12
+
+# Target cloud platform (aws, azure, gcp)
 ARG TARGET_PLATFORM=aws
+
+# Language of the function
 ARG FUNCTION_LANGUAGE=python
+
+# Location of the source code to be containerized
 ARG SOURCE_CODE_DIR="src/"
-ARG MAIN_FILE_NAME="index"
+
+# Name of the file used as the function entrypoint
+ARG MAIN_FILE_NAME="app"
+
+# If you produce an artifact which needs to be included in the image, set this ARG
 ARG ARTIFACT_DIR="_dist/"
+
+# Location the FaaS expects your code to be
+ARG FUNCTION_ROOT="/var/task/"
 
 FROM ${BASE_IMAGE} as base
 
@@ -12,44 +26,43 @@ FROM ${BASE_IMAGE} as base
 ###########################################
 # Python builds presuppose existence of requirments.txt inside source dir
 FROM base AS aws-python
-ADD ${SOURCE_CODE_DIR} ${LAMBDA_TASK_ROOT}
-RUN pip3 install -r requirements.txt --target ${LAMBDA_TASK_ROOT}
+ADD ${SOURCE_CODE_DIR} ${FUNCTION_ROOT}
+RUN pip3 install -r requirements.txt --target ${FUNCTION_ROOT}
 ###########################################
 
 ###########################################
-# Node.js
+# AWS Lambda Node.js
 ###########################################
-# Node.js builds presuppose src/src project structure, src/package.json and src/src/_dist/index.js artifact
 FROM base AS aws-nodejs
-ADD ${SOURCE_CODE_DIR} ${LAMBDA_TASK_ROOT}
-RUN npm install --production && npm run build && mv "${ARTIFACT_DIR}${MAIN_FILE_NAME}.js" ${LAMBDA_TASK_ROOT}
+ADD ${SOURCE_CODE_DIR} ${FUNCTION_ROOT}
+RUN npm install --production && npm run build && mv "${ARTIFACT_DIR}${MAIN_FILE_NAME}.js" ${FUNCTION_ROOT}
 ###########################################
 
 ###########################################
-# Typescript
+# AWS Lambda Typescript
 ###########################################
 FROM base AS aws-typescript
 WORKDIR /usr/app
 COPY package.json index.ts  ./
 RUN npm install
 RUN npm run build
-WORKDIR ${LAMBDA_TASK_ROOT}
+WORKDIR ${FUNCTION_ROOT}
 COPY /usr/app/dist/* ./
 ###########################################
 
 ###########################################
-# Java
+# AWS Lambda Java
 ###########################################
 FROM base AS aws-java
-COPY target/classes ${LAMBDA_TASK_ROOT}
-COPY target/dependency/* ${LAMBDA_TASK_ROOT}/lib/
+COPY target/classes ${FUNCTION_ROOT}
+COPY target/dependency/* ${FUNCTION_ROOT}/lib/
 
 ###########################################
-# Ruby
+# AWS Lambda Ruby
 ###########################################
 FROM base as aws-ruby
 # Copy Gemfile and Gemfile.lock
-COPY Gemfile Gemfile.lock ${LAMBDA_TASK_ROOT}/
+COPY Gemfile Gemfile.lock ${FUNCTION_ROOT}/
 
 # Install Bundler and the specified gems
 RUN gem install bundler:2.4.20 && \
@@ -57,17 +70,17 @@ RUN gem install bundler:2.4.20 && \
     bundle install
 
 # Copy function code
-COPY lambda_function.rb ${LAMBDA_TASK_ROOT}/
+COPY lambda_function.rb ${FUNCTION_ROOT}/
 ###########################################
 
 ###########################################
-# TODO: Go
+# TODO: AWS Lambda Go
 ###########################################
 ###########################################
-# TODO: Rust
+# TODO: AWS Lambda Rust
 ###########################################
 
 FROM ${TARGET_PLAFORM}-${FUNCTION_LANGUAGE} as post-build
 
-# Set CMD using entrypoint override option in AWS 
-CMD []
+# Note: Due to limitations in interpolating inside of Dockerfile CMD instructions, this is hardcoded. 
+CMD [ "app.handler" ]

@@ -1,0 +1,1 @@
+This folder contains example projects for each supported language.
