@@ -8,13 +8,13 @@ ARG TARGET_PLATFORM=aws
 ARG FUNCTION_LANGUAGE=python
 
 # Location of the source code to be containerized
-ARG SOURCE_CODE_DIR="src/"
+ARG SOURCE_CODE_DIR="examples/python/"
 
 # Name of the file used as the function entrypoint
 ARG MAIN_FILE_NAME="app"
 
 # If you produce an artifact which needs to be included in the image, set this ARG
-ARG ARTIFACT_DIR="_dist/"
+ARG ARTIFACT_DIR="dist/"
 
 # Location the FaaS expects your code to be
 ARG FUNCTION_ROOT="/var/task/"
@@ -33,6 +33,7 @@ RUN pip3 install -r requirements.txt --target ${FUNCTION_ROOT}
 ###########################################
 # AWS Lambda Node.js
 ###########################################
+# TODO: If webpacking or similar bundling we don't need to include extra cruft, only artifact
 FROM base AS aws-nodejs
 ADD ${SOURCE_CODE_DIR} ${FUNCTION_ROOT}
 RUN npm install --production && npm run build && mv "${ARTIFACT_DIR}${MAIN_FILE_NAME}.js" ${FUNCTION_ROOT}
@@ -82,5 +83,5 @@ COPY lambda_function.rb ${FUNCTION_ROOT}/
 
 FROM ${TARGET_PLAFORM}-${FUNCTION_LANGUAGE} as post-build
 
-# Note: Due to limitations in interpolating inside of Dockerfile CMD instructions, this is hardcoded. 
+# Note: Due to limitations in interpolating variables inside of Dockerfile CMD instructions, this is hardcoded for now.
 CMD [ "app.handler" ]
