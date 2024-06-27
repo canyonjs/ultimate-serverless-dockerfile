@@ -1,31 +1,34 @@
-# This Dockerfile supports building Lambda container images for the following languages: Node.js, TypeScript, Python, Java, Ruby
-ARG LAMBDA_LANGUAGE=python
-ARG LAMBDA_LANGUAGE_VERSION=3.12
-ARG LAMBDA_LANGUAGE_MODIFIER=0
+ARG BASE_IMAGE=public.ecr.aws/lambda/python:3.12
+ARG TARGET_PLATFORM=aws
+ARG FUNCTION_LANGUAGE=python
+ARG SOURCE_CODE_DIR="src/"
+ARG MAIN_FILE_NAME="index"
+ARG ARTIFACT_DIR="_dist/"
 
-FROM public.ecr.aws/lambda/${LAMBDA_LANGUAGE}:${LAMBDA_LANGUAGE_VERSION}
+FROM ${BASE_IMAGE} as base
 
 ###########################################
-# Python
+# AWS Lambda Python
 ###########################################
-# TODO: Python builds presuppose existence of requirments.txt inside source dir
-FROM base AS lambda-python-0
-ADD ${SOURCE_DIR} ${LAMBDA_TASK_ROOT}
+# Python builds presuppose existence of requirments.txt inside source dir
+FROM base AS aws-python
+ADD ${SOURCE_CODE_DIR} ${LAMBDA_TASK_ROOT}
 RUN pip3 install -r requirements.txt --target ${LAMBDA_TASK_ROOT}
 ###########################################
 
 ###########################################
 # Node.js
 ###########################################
-# TODO: Node.js builds presuppose src/src project structure, src/package.json and src/src/_dist/index.js artifact
-FROM base AS lambda-nodejs-0
-RUN cd "src/" && npm install --production && npm run build && mv "_dist/index.js" ${LAMBDA_TASK_ROOT}
+# Node.js builds presuppose src/src project structure, src/package.json and src/src/_dist/index.js artifact
+FROM base AS aws-nodejs
+ADD ${SOURCE_CODE_DIR} ${LAMBDA_TASK_ROOT}
+RUN npm install --production && npm run build && mv "${ARTIFACT_DIR}${MAIN_FILE_NAME}.js" ${LAMBDA_TASK_ROOT}
 ###########################################
 
 ###########################################
 # Typescript
 ###########################################
-FROM base AS lambda-nodejs-1
+FROM base AS aws-typescript
 WORKDIR /usr/app
 COPY package.json index.ts  ./
 RUN npm install
@@ -37,14 +40,14 @@ COPY /usr/app/dist/* ./
 ###########################################
 # Java
 ###########################################
-FROM base AS lambda-java-0
+FROM base AS aws-java
 COPY target/classes ${LAMBDA_TASK_ROOT}
 COPY target/dependency/* ${LAMBDA_TASK_ROOT}/lib/
 
 ###########################################
 # Ruby
 ###########################################
-FROM base as lambda-ruby-0
+FROM base as aws-ruby
 # Copy Gemfile and Gemfile.lock
 COPY Gemfile Gemfile.lock ${LAMBDA_TASK_ROOT}/
 
@@ -64,7 +67,7 @@ COPY lambda_function.rb ${LAMBDA_TASK_ROOT}/
 # TODO: Rust
 ###########################################
 
-FROM lambda-${LAMBDA_LANGUAGE}-${LAMBDA_LANGUAGE_MODIFIER} as post-build
+FROM ${TARGET_PLAFORM}-${FUNCTION_LANGUAGE} as post-build
 
 # Set CMD using entrypoint override option in AWS 
 CMD []
